@@ -26,7 +26,7 @@
       <el-form :model="bindForm" label-width="100px">
         <el-form-item label="选择剧本" required>
           <el-select v-model="bindForm.scriptThemeId" @change="onThemeChange">
-            <el-option v-for="theme in themes" :key="theme.id" :label="theme.themeName" :value="theme.id" />
+            <el-option v-for="theme in themes" :key="theme.id" :label="`${theme.themeName}（${theme.era || '未设定时代'}）`" :value="theme.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="选择角色" required>
@@ -34,12 +34,26 @@
             <el-option v-for="role in filteredRoles" :key="role.id" :label="role.roleName" :value="role.id" />
           </el-select>
         </el-form-item>
+        <el-form-item label="剧本时代">
+          <el-tag v-if="bindTheme?.era" type="warning">{{ bindTheme.era }}</el-tag>
+          <span v-else class="era-hint">该剧本未设定时代</span>
+        </el-form-item>
         <el-form-item label="选择道具" required>
           <el-checkbox-group v-model="bindForm.propIds">
-            <el-checkbox v-for="prop in props" :key="prop.id" :label="prop.id">
-              {{ prop.propCode }} - {{ prop.propName }} ({{ prop.era }} / {{ prop.propType }})
+            <el-checkbox
+              v-for="prop in props"
+              :key="prop.id"
+              :label="prop.id"
+              :disabled="!isSameEra(prop.era)"
+            >
+              {{ prop.propCode }} - {{ prop.propName }} ({{ prop.era || '未设定' }} / {{ prop.propType }})
+              <el-tag v-if="!isSameEra(prop.era)" type="danger" size="small">时代不符，请改选同代道具</el-tag>
             </el-checkbox>
           </el-checkbox-group>
+          <div class="era-hint">
+            仅可绑定与剧本「{{ bindTheme?.era || '未设定' }}」同时代的道具；跨时代道具已禁选。
+            共 {{ sameEraProps.length }} 件同代道具可选。
+          </div>
         </el-form-item>
         <el-form-item label="操作人">
           <el-input v-model="bindForm.operator" />
@@ -58,11 +72,11 @@
       <el-form :model="changeForm" label-width="100px">
         <el-form-item label="选择剧本" required>
           <el-select v-model="changeForm.scriptThemeId" @change="onChangeTheme">
-            <el-option v-for="theme in themes" :key="theme.id" :label="theme.themeName" :value="theme.id" />
+            <el-option v-for="theme in themes" :key="theme.id" :label="`${theme.themeName}（${theme.era || '未设定时代'}）`" :value="theme.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="原角色" required>
-          <el-select v-model="changeForm.fromRoleId">
+          <el-select v-model="changeForm.fromRoleId" @change="onChangeFromRole">
             <el-option v-for="role in changeRoles" :key="role.id" :label="role.roleName" :value="role.id" />
           </el-select>
         </el-form-item>
@@ -71,10 +85,23 @@
             <el-option v-for="role in changeRoles" :key="role.id" :label="role.roleName" :value="role.id" />
           </el-select>
         </el-form-item>
+        <el-form-item label="剧本时代">
+          <el-tag v-if="changeTheme?.era" type="warning">{{ changeTheme.era }}</el-tag>
+          <span v-else class="era-hint">该剧本未设定时代</span>
+        </el-form-item>
         <el-form-item label="选择道具" required>
           <el-select v-model="changeForm.propId">
-            <el-option v-for="prop in changeProps" :key="prop.id" :label="prop.propName" :value="prop.id" />
+            <el-option
+              v-for="prop in changeProps"
+              :key="prop.id"
+              :label="`${prop.propCode} - ${prop.propName}（${prop.era || '未设定'}）`"
+              :value="prop.id"
+            />
           </el-select>
+          <div v-if="changeSelectedProp && !isChangePropSameEra(changeSelectedProp.era)" class="era-error">
+            道具「{{ changeSelectedProp.propName }}」时代为「{{ changeSelectedProp.era || '未设定' }}」，
+            与剧本时代「{{ changeTheme?.era || '未设定' }}」不符，不能更换到该剧本角色，请改选同代道具。
+          </div>
         </el-form-item>
         <el-form-item label="操作人">
           <el-input v-model="changeForm.operator" />
@@ -136,6 +163,38 @@ const changeProps = computed(() => {
   return props.value.filter(p => propIds.includes(p.id))
 })
 
+// 绑定弹窗当前所选剧本及其时代（核对基准）
+const bindTheme = computed(() =>
+  themes.value.find(t => t.id === bindForm.value.scriptThemeId) || null
+)
+
+// 更换弹窗当前所选剧本及其时代（核对基准）
+const changeTheme = computed(() =>
+  themes.value.find(t => t.id === changeForm.value.scriptThemeId) || null
+)
+
+const changeSelectedProp = computed(() =>
+  props.value.find(p => p.id === changeForm.value.propId) || null
+)
+
+// 同代道具（与当前所选剧本时代一致）
+const sameEraProps = computed(() =>
+  props.value.filter(p => isSameEra(p.era))
+)
+
+// 时代核对：去空白后必须完全一致；任一方缺时代也视为不符
+const eraEquals = (themeEra?: string, propEra?: string): boolean => {
+  const t = (themeEra || '').trim()
+  const p = (propEra || '').trim()
+  return t !== '' && p !== '' && t === p
+}
+
+const isSameEra = (propEra?: string): boolean =>
+  eraEquals(bindTheme.value?.era, propEra)
+
+const isChangePropSameEra = (propEra?: string): boolean =>
+  eraEquals(changeTheme.value?.era, propEra)
+
 const onThemeChange = () => {
   bindForm.value.characterRoleId = 0
   bindForm.value.propIds = []
@@ -145,6 +204,16 @@ const onChangeTheme = () => {
   changeForm.value.fromRoleId = 0
   changeForm.value.toRoleId = 0
   changeForm.value.propId = 0
+}
+
+const onChangeFromRole = () => {
+  changeForm.value.propId = 0
+}
+
+// 从 axios 异常中取出后端返回的提示语
+const resolveError = (err: unknown, fallback: string): string => {
+  const e = err as { response?: { data?: { message?: string } }; message?: string }
+  return e?.response?.data?.message || e?.message || fallback
 }
 
 const loadData = async () => {
@@ -184,8 +253,27 @@ const openChangeModal = () => {
 }
 
 const handleBind = async () => {
-  if (!bindForm.value.characterRoleId || bindForm.value.propIds.length === 0) {
-    ElMessage.error('请选择角色和道具')
+  if (!bindForm.value.scriptThemeId || !bindForm.value.characterRoleId || bindForm.value.propIds.length === 0) {
+    ElMessage.error('请选择剧本、角色和道具')
+    return
+  }
+  const theme = bindTheme.value
+  if (!theme?.era?.trim()) {
+    ElMessage.error('所选剧本未设定时代，无法核对道具时代')
+    return
+  }
+  // 提交前再核对一遍：跨时代道具必须拦住，提示改选同代
+  const mismatched = props.value.filter(
+    p => bindForm.value.propIds.includes(p.id) && !eraEquals(theme.era, p.era)
+  )
+  if (mismatched.length > 0) {
+    ElMessage({
+      type: 'error',
+      duration: 5000,
+      message: `跨时代绑定被拦截：剧本「${theme.themeName}」时代为「${theme.era}」，${mismatched
+        .map(p => `「${p.propName}」为${p.era ? '「' + p.era + '」' : '未设定时代'}`)
+        .join('、')}，请改选同代道具`
+    })
     return
   }
   try {
@@ -193,8 +281,8 @@ const handleBind = async () => {
     ElMessage.success('绑定成功')
     bindModalVisible.value = false
     loadData()
-  } catch {
-    ElMessage.error('绑定失败')
+  } catch (err) {
+    ElMessage({ type: 'error', duration: 5000, message: resolveError(err, '绑定失败') })
   }
 }
 
@@ -210,7 +298,7 @@ const handleUnbind = async (row: RolePropResponse) => {
 }
 
 const handleChange = async () => {
-  if (!changeForm.value.fromRoleId || !changeForm.value.toRoleId || !changeForm.value.propId) {
+  if (!changeForm.value.scriptThemeId || !changeForm.value.fromRoleId || !changeForm.value.toRoleId || !changeForm.value.propId) {
     ElMessage.error('请完整填写表单')
     return
   }
@@ -218,13 +306,28 @@ const handleChange = async () => {
     ElMessage.error('原角色和新角色不能相同')
     return
   }
+  const theme = changeTheme.value
+  const prop = changeSelectedProp.value
+  if (!theme?.era?.trim()) {
+    ElMessage.error('所选剧本未设定时代，无法核对道具时代')
+    return
+  }
+  // 更换所属人物前核对道具时代与新角色所属剧本时代，不符不能换过去
+  if (prop && !eraEquals(theme.era, prop.era)) {
+    ElMessage({
+      type: 'error',
+      duration: 5000,
+      message: `跨时代更换被拦截：道具「${prop.propName}」时代为「${prop.era || '未设定'}」，剧本「${theme.themeName}」时代为「${theme.era}」，请改选同代道具`
+    })
+    return
+  }
   try {
     await rolePropApi.change(changeForm.value)
     ElMessage.success('更换成功')
     changeModalVisible.value = false
     loadData()
-  } catch {
-    ElMessage.error('更换失败')
+  } catch (err) {
+    ElMessage({ type: 'error', duration: 5000, message: resolveError(err, '更换失败') })
   }
 }
 
@@ -238,5 +341,19 @@ onMounted(loadData)
 
 .card-header .el-button {
   margin-right: 10px;
+}
+
+.era-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.6;
+}
+
+.era-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #f56c6c;
+  line-height: 1.6;
 }
 </style>
