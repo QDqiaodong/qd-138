@@ -24,7 +24,19 @@
         </div>
         
         <div v-if="searchType === 'prop'" class="search-input">
-          <el-select v-model="searchPropId" placeholder="选择道具" style="width: 300px;" clearable>
+          <el-input
+            v-model="searchPropCode"
+            placeholder="扫码或输入道具编号，回车查询"
+            style="width: 260px;"
+            clearable
+            @keyup.enter="searchByPropCode"
+          >
+            <template #append>
+              <el-button @click="searchByPropCode">查询</el-button>
+            </template>
+          </el-input>
+          <span class="search-divider">或</span>
+          <el-select v-model="searchPropId" placeholder="选择道具" style="width: 280px;" clearable filterable>
             <el-option v-for="prop in props" :key="prop.id" :label="`${prop.propCode} - ${prop.propName}`" :value="prop.id" />
           </el-select>
           <el-button @click="searchByProp" style="margin-left: 10px;">查询</el-button>
@@ -68,18 +80,24 @@
 
       <div v-if="searchType === 'prop' && propResult.length > 0" class="result-section">
         <h3>道具溯源结果</h3>
+        <el-alert
+          :title="`道具「${propResult[0].propCode} ${propResult[0].propName}」当前人物：${currentRoleSummary}`"
+          type="success"
+          :closable="false"
+          class="current-role-summary"
+        />
         <el-table :data="propResult" border>
           <el-table-column prop="propCode" label="道具编号" width="120" />
           <el-table-column prop="propName" label="道具名称" />
           <el-table-column prop="propType" label="道具类型" width="100" />
           <el-table-column prop="era" label="适配时代" width="100" />
           <el-table-column prop="themeName" label="剧本主题" width="120" />
-          <el-table-column prop="roleName" label="绑定角色" width="120" />
+          <el-table-column prop="roleName" label="当前人物" width="120" />
           <el-table-column prop="bindTime" label="绑定时间" width="180" />
         </el-table>
       </div>
 
-      <div v-if="!roleResult && !themeResult && !propResult && searched" class="empty-result">
+      <div v-if="!roleResult && !themeResult && propResult.length === 0 && searched" class="empty-result">
         <el-empty description="暂无查询结果" />
       </div>
     </el-card>
@@ -87,13 +105,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { themeApi, propApi, rolePropApi, type ScriptTheme, type Prop, type RolePropsResponse, type ScriptThemeDetailResponse, type RolePropResponse } from '@/api'
+import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { themeApi, propApi, rolePropApi, getErrorMessage, type ScriptTheme, type Prop, type RolePropsResponse, type ScriptThemeDetailResponse, type RolePropResponse } from '@/api'
 
 const searchType = ref<'role' | 'theme' | 'prop'>('role')
 const searchKeyword = ref('')
 const searchThemeId = ref<number | null>(null)
 const searchPropId = ref<number | null>(null)
+const searchPropCode = ref('')
 const searched = ref(false)
 
 const themes = ref<ScriptTheme[]>([])
@@ -102,11 +122,17 @@ const roleResult = ref<RolePropsResponse | null>(null)
 const themeResult = ref<ScriptThemeDetailResponse | null>(null)
 const propResult = ref<RolePropResponse[]>([])
 
+const currentRoleSummary = computed(() => {
+  const holders = [...new Set(propResult.value.map(item => `${item.roleName}（${item.themeName}）`))]
+  return holders.join('、')
+})
+
 const onSearchTypeChange = () => {
   roleResult.value = null
   themeResult.value = null
   propResult.value = []
   searched.value = false
+  searchPropCode.value = ''
 }
 
 const loadOptions = async () => {
@@ -151,6 +177,29 @@ const searchByProp = async () => {
   themeResult.value = null
 }
 
+const searchByPropCode = async () => {
+  const code = searchPropCode.value.trim()
+  if (!code) {
+    return
+  }
+  searched.value = true
+  searchPropId.value = null
+  try {
+    const res = await rolePropApi.getByPropCode(code)
+    propResult.value = res || []
+    roleResult.value = null
+    themeResult.value = null
+    if (propResult.value.length === 0) {
+      ElMessage.info(`道具「${code}」已建档，当前未绑定任何人物`)
+    }
+  } catch (err) {
+    propResult.value = []
+    roleResult.value = null
+    themeResult.value = null
+    ElMessage.error(getErrorMessage(err, '查询失败，请确认道具编号是否正确'))
+  }
+}
+
 onMounted(loadOptions)
 </script>
 
@@ -161,6 +210,15 @@ onMounted(loadOptions)
 
 .search-input {
   margin-top: 15px;
+}
+
+.search-divider {
+  margin: 0 10px;
+  color: #999;
+}
+
+.current-role-summary {
+  margin-bottom: 15px;
 }
 
 .result-section h3 {

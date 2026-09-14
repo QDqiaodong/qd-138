@@ -54,6 +54,13 @@ public class RolePropServiceImpl implements RolePropService {
     }
 
     @Override
+    public List<RolePropResponse> getRolePropsByPropCode(String propCode) {
+        Prop prop = propRepository.findByPropCode(propCode)
+                .orElseThrow(() -> new BusinessException("道具编号「" + propCode + "」不存在，请先在道具档案中建档"));
+        return getRolePropsByPropId(prop.getId());
+    }
+
+    @Override
     public List<RolePropResponse> getRolePropsByThemeId(Long themeId) {
         List<RoleProp> roleProps = rolePropRepository.findByScriptThemeId(themeId);
         return convertToResponseList(roleProps);

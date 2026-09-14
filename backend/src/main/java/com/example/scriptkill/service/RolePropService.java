@@ -12,6 +12,7 @@ public interface RolePropService {
     List<RolePropResponse> getAllRoleProps();
     List<RolePropResponse> getRolePropsByRoleId(Long roleId);
     List<RolePropResponse> getRolePropsByPropId(Long propId);
+    List<RolePropResponse> getRolePropsByPropCode(String propCode);
     List<RolePropResponse> getRolePropsByThemeId(Long themeId);
     RolePropsResponse getRolePropsByRoleName(String roleName);
     ScriptThemeDetailResponse getThemeDetail(Long themeId);

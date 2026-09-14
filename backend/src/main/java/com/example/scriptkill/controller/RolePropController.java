@@ -35,6 +35,11 @@ public class RolePropController {
         return ApiResponse.success(rolePropService.getRolePropsByPropId(propId));
     }
 
+    @GetMapping("/prop-code/{propCode}")
+    public ApiResponse<List<RolePropResponse>> getRolePropsByPropCode(@PathVariable String propCode) {
+        return ApiResponse.success(rolePropService.getRolePropsByPropCode(propCode));
+    }
+
     @GetMapping("/theme/{themeId}")
     public ApiResponse<List<RolePropResponse>> getRolePropsByThemeId(@PathVariable Long themeId) {
         return ApiResponse.success(rolePropService.getRolePropsByThemeId(themeId));

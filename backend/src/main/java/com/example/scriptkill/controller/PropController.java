@@ -1,6 +1,8 @@
 package com.example.scriptkill.controller;
 
+import com.example.scriptkill.dto.request.ScanParseRequest;
 import com.example.scriptkill.dto.response.ApiResponse;
+import com.example.scriptkill.dto.response.ScanParseResponse;
 import com.example.scriptkill.entity.Prop;
 import com.example.scriptkill.service.PropService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +32,11 @@ public class PropController {
     @GetMapping("/code/{code}")
     public ApiResponse<Prop> getPropByCode(@PathVariable String code) {
         return ApiResponse.success(propService.getPropByCode(code));
+    }
+
+    @PostMapping("/scan-parse")
+    public ApiResponse<ScanParseResponse> parseScannedCode(@RequestBody ScanParseRequest request) {
+        return ApiResponse.success(propService.parseScannedCode(request.getRawCode()));
     }
 
     @GetMapping("/era/{era}")

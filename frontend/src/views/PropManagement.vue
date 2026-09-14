@@ -3,6 +3,7 @@
     <el-card>
       <div class="card-header">
         <el-button type="primary" @click="openAddModal">新增道具</el-button>
+        <el-button type="success" @click="openScanDialog">扫码建档</el-button>
         <el-select v-model="filterEra" placeholder="按时代筛选" style="margin-left: 20px; width: 150px;" clearable>
           <el-option v-for="era in eras" :key="era" :label="era" :value="era" />
         </el-select>
@@ -33,6 +34,37 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <el-dialog v-model="scanDialogVisible" title="扫码建档" width="520px" @close="stopCamera">
+      <div class="scan-area">
+        <div v-show="cameraActive" id="prop-scan-reader" class="scan-reader"></div>
+        <el-alert
+          v-if="cameraError"
+          :title="cameraError"
+          type="warning"
+          :closable="false"
+          class="scan-tip"
+        />
+        <el-alert
+          v-else
+          title="请将道具编号条码对准摄像头，或使用扫码枪扫入下方输入框"
+          type="info"
+          :closable="false"
+          class="scan-tip"
+        />
+        <el-input
+          ref="scanInputRef"
+          v-model="scanInput"
+          placeholder="扫不到时可手动录入编号，回车确认"
+          clearable
+          @keyup.enter="handleManualScanSubmit"
+        >
+          <template #append>
+            <el-button :loading="parsing" @click="handleManualScanSubmit">解析</el-button>
+          </template>
+        </el-input>
+      </div>
+    </el-dialog>
 
     <el-dialog v-model="modalVisible" :title="isEdit ? '编辑道具' : '新增道具'" width="500px">
       <el-form :model="form" label-width="80px">
@@ -72,9 +104,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { propApi, type Prop } from '@/api'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ElMessage, ElMessageBox, type InputInstance } from 'element-plus'
+import { Html5Qrcode } from 'html5-qrcode'
+import { propApi, getErrorMessage, type Prop, type ScanParseResponse } from '@/api'
 
 const props = ref<Prop[]>([])
 const modalVisible = ref(false)
@@ -90,6 +123,15 @@ const form = ref<Omit<Prop, 'id' | 'createdAt' | 'updatedAt'>>({
   status: '正常'
 })
 const editId = ref<number | null>(null)
+
+const scanDialogVisible = ref(false)
+const scanInput = ref('')
+const scanInputRef = ref<InputInstance>()
+const cameraActive = ref(false)
+const cameraError = ref('')
+const parsing = ref(false)
+let scanner: Html5Qrcode | null = null
+let lastScanAttemptAt = 0
 
 const eras = ['民国', '古代', '古风', '仙侠', '未来', '现代', '悬疑']
 const propTypes = ['服装', '配饰', '道具', '武器', '乐器', '电子设备', '电子产品', '法器', '丹药', '线索物品']
@@ -115,6 +157,99 @@ const openAddModal = () => {
   editId.value = null
   form.value = { propCode: '', propName: '', era: '', propType: '', description: '', status: '正常' }
   modalVisible.value = true
+}
+
+const openScanDialog = async () => {
+  scanDialogVisible.value = true
+  scanInput.value = ''
+  cameraError.value = ''
+  await nextTick()
+  startCamera()
+  scanInputRef.value?.focus()
+}
+
+const startCamera = async () => {
+  try {
+    scanner = new Html5Qrcode('prop-scan-reader')
+    await scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 280, height: 160 } },
+      (decodedText: string) => { handleScannedCode(decodedText) },
+      () => { /* 单帧未识别到条码，属正常情况，忽略 */ }
+    )
+    cameraActive.value = true
+  } catch {
+    // 无摄像头或未授权时退化为扫码枪/手动录入
+    cameraActive.value = false
+    cameraError.value = '摄像头不可用，请使用扫码枪扫入或手动录入编号'
+    stopCamera()
+  }
+}
+
+const stopCamera = async () => {
+  if (scanner) {
+    try {
+      if (cameraActive.value) {
+        await scanner.stop()
+      }
+      scanner.clear()
+    } catch {
+      // 停止失败不影响后续流程
+    }
+    scanner = null
+  }
+  cameraActive.value = false
+}
+
+const handleManualScanSubmit = () => {
+  const code = scanInput.value.trim()
+  if (!code) {
+    ElMessage.warning('请先扫描或录入道具编号')
+    return
+  }
+  handleScannedCode(code)
+}
+
+const handleScannedCode = async (rawCode: string) => {
+  const now = Date.now()
+  // 摄像头会连续识别同一条码，1.5秒内的重复触发直接忽略
+  if (parsing.value || now - lastScanAttemptAt < 1500) {
+    return
+  }
+  lastScanAttemptAt = now
+  parsing.value = true
+  try {
+    const res = await propApi.scanParse(rawCode)
+    await handleParsedCode(res)
+  } catch (err) {
+    ElMessage.error(getErrorMessage(err, '条码解析失败，请重新扫描或手动录入'))
+  } finally {
+    parsing.value = false
+  }
+}
+
+const handleParsedCode = async (res: ScanParseResponse) => {
+  if (res.exists && res.prop) {
+    const existing = res.prop
+    await stopCamera()
+    scanDialogVisible.value = false
+    try {
+      await ElMessageBox.confirm(
+        `编号「${res.propCode}」已建档：${existing.propName}，是否打开该道具档案？`,
+        '该编号已存在',
+        { confirmButtonText: '打开档案', cancelButtonText: '继续扫码', type: 'warning' }
+      )
+      openEditModal(existing)
+    } catch {
+      openScanDialog()
+    }
+    return
+  }
+  await stopCamera()
+  scanDialogVisible.value = false
+  openAddModal()
+  form.value.propCode = res.propCode
+  ElMessage.success(`已解析编号「${res.propCode}」，请补全道具信息后建档`)
 }
 
 const openEditModal = (row: Prop) => {
@@ -146,8 +281,8 @@ const handleSubmit = async () => {
     }
     modalVisible.value = false
     loadProps()
-  } catch {
-    ElMessage.error('操作失败')
+  } catch (err) {
+    ElMessage.error(getErrorMessage(err, '操作失败'))
   }
 }
 
@@ -163,10 +298,28 @@ const handleDelete = async (row: Prop) => {
 }
 
 onMounted(loadProps)
+
+onBeforeUnmount(() => {
+  stopCamera()
+})
 </script>
 
 <style scoped>
 .card-header {
   margin-bottom: 20px;
+}
+
+.scan-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scan-reader {
+  width: 100%;
+  min-height: 220px;
+  background: #000;
+  border-radius: 4px;
+  overflow: hidden;
 }
 </style>

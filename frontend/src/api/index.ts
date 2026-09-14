@@ -60,6 +60,23 @@ export interface Prop {
   updatedAt: string
 }
 
+export interface ScanParseResponse {
+  rawCode: string
+  propCode: string
+  exists: boolean
+  prop: Prop | null
+}
+
+export const getErrorMessage = (err: unknown, fallback: string): string => {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { message?: string } | undefined
+    if (data?.message) {
+      return data.message
+    }
+  }
+  return fallback
+}
+
 export interface RolePropResponse {
   id: number
   characterRoleId: number
@@ -151,10 +168,12 @@ export const roleApi = {
 export const propApi = {
   getAll: () => api.get<Prop[]>('/prop'),
   getById: (id: number) => api.get<Prop>(`/prop/${id}`),
+  getByCode: (code: string) => api.get<Prop>(`/prop/code/${encodeURIComponent(code)}`),
   getByEra: (era: string) => api.get<Prop[]>(`/prop/era/${era}`),
   getByType: (type: string) => api.get<Prop[]>(`/prop/type/${type}`),
   getEraStyleTemplate: () => api.get<Record<string, string[]>>('/prop/era-style-template'),
-  create: (data: Omit<Prop, 'id' | 'createdAt' | 'updatedAt'>) => 
+  scanParse: (rawCode: string) => api.post<ScanParseResponse>('/prop/scan-parse', { rawCode }),
+  create: (data: Omit<Prop, 'id' | 'createdAt' | 'updatedAt'>) =>
     api.post<Prop>('/prop', data),
   update: (id: number, data: Partial<Prop>) => 
     api.put<Prop>(`/prop/${id}`, data),
@@ -165,6 +184,7 @@ export const rolePropApi = {
   getAll: () => api.get<RolePropResponse[]>('/role-prop'),
   getByRoleId: (roleId: number) => api.get<RolePropResponse[]>(`/role-prop/role/${roleId}`),
   getByPropId: (propId: number) => api.get<RolePropResponse[]>(`/role-prop/prop/${propId}`),
+  getByPropCode: (propCode: string) => api.get<RolePropResponse[]>(`/role-prop/prop-code/${encodeURIComponent(propCode)}`),
   getByThemeId: (themeId: number) => api.get<RolePropResponse[]>(`/role-prop/theme/${themeId}`),
   searchByRoleName: (roleName: string) => api.get<RolePropsResponse>(`/role-prop/search-by-role-name?roleName=${roleName}`),
   bind: (data: { characterRoleId: number; scriptThemeId: number; propIds: number[]; operator?: string; reason?: string }) => 
