@@ -143,6 +143,43 @@ export interface PropChangeRecord {
   createdAt: string
 }
 
+export interface CharacterReviewSummary {
+  roleId: number | null
+  roleName: string
+  themeName: string
+  bindCount: number
+  unbindCount: number
+  changeCount: number
+  totalCount: number
+  unconfirmedCount: number
+}
+
+export interface CharacterReviewRecord {
+  id: number
+  propId: number
+  propCode: string
+  propName: string
+  roleId: number | null
+  roleName: string
+  themeName: string
+  changeType: string
+  beforeValue: string
+  afterValue: string
+  changeReason: string
+  unconfirmed: boolean
+  operator: string
+  createdAt: string
+}
+
+export interface CharacterReviewResponse {
+  date: string
+  roleCount: number
+  totalCount: number
+  unconfirmedCount: number
+  summary: CharacterReviewSummary[]
+  details: CharacterReviewRecord[]
+}
+
 export const themeApi = {
   getAll: () => api.get<ScriptTheme[]>('/theme'),
   getById: (id: number) => api.get<ScriptTheme>(`/theme/${id}`),
@@ -199,5 +236,7 @@ export const changeRecordApi = {
   getAll: () => api.get<PropChangeRecord[]>('/change-record'),
   getByPropId: (propId: number) => api.get<PropChangeRecord[]>(`/change-record/prop/${propId}`),
   getByRoleId: (roleId: number) => api.get<PropChangeRecord[]>(`/change-record/role/${roleId}`),
-  getByThemeId: (themeId: number) => api.get<PropChangeRecord[]>(`/change-record/theme/${themeId}`)
+  getByThemeId: (themeId: number) => api.get<PropChangeRecord[]>(`/change-record/theme/${themeId}`),
+  getCharacterReview: (date?: string) =>
+    api.get<CharacterReviewResponse>(`/change-record/character-review${date ? `?date=${date}` : ''}`)
 }

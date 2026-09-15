@@ -32,7 +32,7 @@
 <script setup lang="ts">
 import { computed, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Menu, User, Box, Link, Search, Clock } from '@element-plus/icons-vue'
+import { Menu, User, Box, Link, Search, Clock, View } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,7 +43,8 @@ const menuItems = [
   { path: '/prop', title: '道具档案管理', icon: markRaw(Box) },
   { path: '/association', title: '角色道具关联', icon: markRaw(Link) },
   { path: '/trace', title: '双向溯源查询', icon: markRaw(Search) },
-  { path: '/history', title: '变更记录', icon: markRaw(Clock) }
+  { path: '/history', title: '变更记录', icon: markRaw(Clock) },
+  { path: '/review', title: '人物回看', icon: markRaw(View) }
 ]
 
 const titles = Object.fromEntries(menuItems.map(item => [item.path, item.title]))

@@ -4,6 +4,7 @@ import com.example.scriptkill.entity.PropChangeRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -11,4 +12,5 @@ public interface PropChangeRecordRepository extends JpaRepository<PropChangeReco
     List<PropChangeRecord> findByPropIdOrderByCreatedAtDesc(Long propId);
     List<PropChangeRecord> findByCharacterRoleIdOrderByCreatedAtDesc(Long characterRoleId);
     List<PropChangeRecord> findByScriptThemeIdOrderByCreatedAtDesc(Long scriptThemeId);
+    List<PropChangeRecord> findByCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(LocalDateTime start, LocalDateTime end);
 }
