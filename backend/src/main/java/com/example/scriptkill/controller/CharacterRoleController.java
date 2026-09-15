@@ -1,8 +1,10 @@
 package com.example.scriptkill.controller;
 
 import com.example.scriptkill.dto.response.ApiResponse;
+import com.example.scriptkill.dto.response.CharacterRoleResponse;
 import com.example.scriptkill.entity.CharacterRole;
 import com.example.scriptkill.repository.CharacterRoleRepository;
+import com.example.scriptkill.service.CharacterRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,9 +18,12 @@ public class CharacterRoleController {
     @Autowired
     private CharacterRoleRepository characterRoleRepository;
 
+    @Autowired
+    private CharacterRoleService characterRoleService;
+
     @GetMapping
-    public ApiResponse<List<CharacterRole>> getAllRoles() {
-        return ApiResponse.success(characterRoleRepository.findAll());
+    public ApiResponse<List<CharacterRoleResponse>> getAllRoles() {
+        return ApiResponse.success(characterRoleService.listAll());
     }
 
     @GetMapping("/{id}")
@@ -27,8 +32,8 @@ public class CharacterRoleController {
     }
 
     @GetMapping("/theme/{themeId}")
-    public ApiResponse<List<CharacterRole>> getRolesByTheme(@PathVariable Long themeId) {
-        return ApiResponse.success(characterRoleRepository.findByScriptThemeId(themeId));
+    public ApiResponse<List<CharacterRoleResponse>> getRolesByTheme(@PathVariable Long themeId) {
+        return ApiResponse.success(characterRoleService.listByTheme(themeId));
     }
 
     @PostMapping

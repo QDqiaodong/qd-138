@@ -41,6 +41,8 @@ export interface CharacterRole {
   id: number
   roleName: string
   scriptThemeId: number
+  /** 所属剧本名：后端读取时实时关联当前主题，改名后刷新即为新名 */
+  themeName?: string
   gender: string
   age: number
   description: string

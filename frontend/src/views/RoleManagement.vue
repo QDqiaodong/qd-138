@@ -65,11 +65,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { themeApi, roleApi, type ScriptTheme, type CharacterRole } from '@/api'
 
 const themes = ref<ScriptTheme[]>([])
-const roles = ref<(CharacterRole & { themeName: string })[]>([])
+const roles = ref<CharacterRole[]>([])
 const modalVisible = ref(false)
 const isEdit = ref(false)
 const filterThemeId = ref<number | null>(null)
-const form = ref<Omit<CharacterRole, 'id' | 'createdAt' | 'updatedAt'>>({
+const form = ref<Omit<CharacterRole, 'id' | 'createdAt' | 'updatedAt' | 'themeName'>>({
   roleName: '',
   scriptThemeId: 0,
   gender: '',
@@ -88,13 +88,14 @@ const loadThemes = async () => {
   themes.value = res
 }
 
+// 所属剧本以后端按当前主题实时关联返回的 themeName 为准，
+// 本地主题列表仅作兜底，确保改名刷新后显示新名
+const resolveThemeName = (role: CharacterRole): string =>
+  role.themeName || themes.value.find(t => t.id === role.scriptThemeId)?.themeName || ''
+
 const loadRoles = async () => {
   const res = await roleApi.getAll()
-  const roleList = res
-  roles.value = roleList.map(role => ({
-    ...role,
-    themeName: themes.value.find(t => t.id === role.scriptThemeId)?.themeName || ''
-  }))
+  roles.value = res.map(role => ({ ...role, themeName: resolveThemeName(role) }))
 }
 
 const openAddModal = () => {
@@ -104,7 +105,7 @@ const openAddModal = () => {
   modalVisible.value = true
 }
 
-const openEditModal = (row: CharacterRole & { themeName: string }) => {
+const openEditModal = (row: CharacterRole) => {
   isEdit.value = true
   editId.value = row.id
   form.value = {
@@ -137,7 +138,7 @@ const handleSubmit = async () => {
   }
 }
 
-const handleDelete = async (row: CharacterRole & { themeName: string }) => {
+const handleDelete = async (row: CharacterRole) => {
   try {
     await ElMessageBox.confirm(`确定删除角色「${row.roleName}」？`, '提示', { type: 'warning' })
     await roleApi.delete(row.id)
