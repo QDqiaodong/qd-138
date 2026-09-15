@@ -180,6 +180,19 @@ export interface CharacterReviewResponse {
   details: CharacterReviewRecord[]
 }
 
+export interface DamageReport {
+  id: number
+  reportNo: string
+  propId: number
+  propCode: string
+  propName: string
+  damagedPart: string
+  discoverer: string
+  status: string
+  createdAt: string
+  closedAt: string | null
+}
+
 export const themeApi = {
   getAll: () => api.get<ScriptTheme[]>('/theme'),
   getById: (id: number) => api.get<ScriptTheme>(`/theme/${id}`),
@@ -239,4 +252,12 @@ export const changeRecordApi = {
   getByThemeId: (themeId: number) => api.get<PropChangeRecord[]>(`/change-record/theme/${themeId}`),
   getCharacterReview: (date?: string) =>
     api.get<CharacterReviewResponse>(`/change-record/character-review${date ? `?date=${date}` : ''}`)
+}
+
+export const damageReportApi = {
+  getAll: () => api.get<DamageReport[]>('/damage-report'),
+  getById: (id: number) => api.get<DamageReport>(`/damage-report/${id}`),
+  create: (data: { propId: number; damagedPart: string; discoverer: string }) =>
+    api.post<DamageReport>('/damage-report', data),
+  close: (id: number) => api.post<DamageReport>(`/damage-report/${id}/close`)
 }

@@ -66,6 +66,22 @@ CREATE TABLE IF NOT EXISTS prop_change_record (
     FOREIGN KEY (script_theme_id) REFERENCES script_theme(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='道具变更记录表';
 
+CREATE TABLE IF NOT EXISTS prop_damage_report (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    report_no VARCHAR(30) COMMENT '报损单号',
+    prop_id BIGINT NOT NULL COMMENT '道具ID',
+    damaged_part VARCHAR(200) NOT NULL COMMENT '损坏部位（开单录入原文）',
+    discoverer VARCHAR(100) NOT NULL COMMENT '发现人（开单录入原文）',
+    status VARCHAR(20) DEFAULT '未结案' COMMENT '状态：未结案/已结案',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '开单时间',
+    closed_at DATETIME NULL COMMENT '结案时间',
+    -- 未结案时取道具ID、结案后为NULL的生成列，配合唯一键保证同一道具至多一张未结案报损单
+    open_prop_id BIGINT GENERATED ALWAYS AS (IF(status = '未结案', prop_id, NULL)) STORED,
+    UNIQUE KEY uk_report_no (report_no),
+    UNIQUE KEY uk_open_prop_id (open_prop_id),
+    FOREIGN KEY (prop_id) REFERENCES prop(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='道具报损单表';
+
 INSERT INTO script_theme (theme_name, description, era, difficulty) VALUES
 ('民国风云', '1930年代上海滩，帮派纷争，爱恨情仇交织的悬疑故事', '民国', '中等'),
 ('古风仙侠', '仙侠世界，门派恩怨，寻找失落的神器', '古代', '困难'),

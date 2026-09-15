@@ -6,6 +6,7 @@ import AssociationManagement from '@/views/AssociationManagement.vue'
 import TraceQuery from '@/views/TraceQuery.vue'
 import HistoryRecord from '@/views/HistoryRecord.vue'
 import CharacterReview from '@/views/CharacterReview.vue'
+import DamageReport from '@/views/DamageReport.vue'
 
 const routes = [
   { path: '/', redirect: '/theme' },
@@ -15,7 +16,8 @@ const routes = [
   { path: '/association', component: AssociationManagement },
   { path: '/trace', component: TraceQuery },
   { path: '/history', component: HistoryRecord },
-  { path: '/review', component: CharacterReview }
+  { path: '/review', component: CharacterReview },
+  { path: '/damage-report', component: DamageReport }
 ]
 
 const router = createRouter({
