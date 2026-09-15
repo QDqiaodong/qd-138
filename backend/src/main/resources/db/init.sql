@@ -82,6 +82,40 @@ CREATE TABLE IF NOT EXISTS prop_damage_report (
     FOREIGN KEY (prop_id) REFERENCES prop(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='道具报损单表';
 
+CREATE TABLE IF NOT EXISTS performer (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    performer_name VARCHAR(100) NOT NULL COMMENT '演职人员姓名',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_performer_name (performer_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='演职人员名册表';
+
+CREATE TABLE IF NOT EXISTS show_session (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    session_no VARCHAR(30) COMMENT '场次编号',
+    script_theme_id BIGINT NOT NULL COMMENT '演出剧本主题ID',
+    start_time DATETIME NOT NULL COMMENT '开演时间',
+    end_time DATETIME NOT NULL COMMENT '结束时间',
+    status VARCHAR(20) DEFAULT '排班中' COMMENT '状态：排班中/已排好',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (script_theme_id) REFERENCES script_theme(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='演出场次表';
+
+CREATE TABLE IF NOT EXISTS session_assignment (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    session_id BIGINT NOT NULL COMMENT '场次ID',
+    character_role_id BIGINT NOT NULL COMMENT '人物角色ID',
+    performer_id BIGINT NOT NULL COMMENT '演职人员ID',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    -- 一个人物在一场里只排一名演员；同一个人在同一场里不能演两个人物
+    UNIQUE KEY uk_session_role (session_id, character_role_id),
+    UNIQUE KEY uk_session_performer (session_id, performer_id),
+    FOREIGN KEY (session_id) REFERENCES show_session(id) ON DELETE CASCADE,
+    FOREIGN KEY (character_role_id) REFERENCES character_role(id) ON DELETE CASCADE,
+    FOREIGN KEY (performer_id) REFERENCES performer(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='场次排班表';
+
 INSERT INTO script_theme (theme_name, description, era, difficulty) VALUES
 ('民国风云', '1930年代上海滩，帮派纷争，爱恨情仇交织的悬疑故事', '民国', '中等'),
 ('古风仙侠', '仙侠世界，门派恩怨，寻找失落的神器', '古代', '困难'),
@@ -139,3 +173,11 @@ INSERT INTO role_prop (character_role_id, prop_id, script_theme_id) VALUES
 (9, 14, 4),
 (10, 12, 4),
 (10, 13, 4);
+
+INSERT INTO performer (performer_name) VALUES
+('张子昂'),
+('李慕白'),
+('王晓彤'),
+('刘一帆'),
+('陈星'),
+('赵梦琪');

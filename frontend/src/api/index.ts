@@ -195,6 +195,32 @@ export interface DamageReport {
   closedAt: string | null
 }
 
+export interface Performer {
+  id: number
+  performerName: string
+  createdAt: string
+}
+
+export interface SessionAssignmentView {
+  characterRoleId: number
+  roleName: string
+  performerId: number
+  performerName: string
+}
+
+export interface ShowSession {
+  id: number
+  sessionNo: string
+  scriptThemeId: number
+  themeName: string
+  startTime: string
+  endTime: string
+  status: string
+  totalRoles: number
+  assignedCount: number
+  assignments: SessionAssignmentView[]
+}
+
 export const themeApi = {
   getAll: () => api.get<ScriptTheme[]>('/theme'),
   getById: (id: number) => api.get<ScriptTheme>(`/theme/${id}`),
@@ -262,4 +288,22 @@ export const damageReportApi = {
   create: (data: { propId: number; damagedPart: string; discoverer: string }) =>
     api.post<DamageReport>('/damage-report', data),
   close: (id: number) => api.post<DamageReport>(`/damage-report/${id}/close`)
+}
+
+export const performerApi = {
+  getAll: () => api.get<Performer[]>('/performer'),
+  create: (data: { performerName: string }) => api.post<Performer>('/performer', data),
+  delete: (id: number) => api.delete<{ code: number }>(`/performer/${id}`)
+}
+
+export const sessionApi = {
+  getAll: () => api.get<ShowSession[]>('/session'),
+  getById: (id: number) => api.get<ShowSession>(`/session/${id}`),
+  create: (data: { scriptThemeId: number; startTime: string; endTime: string }) =>
+    api.post<ShowSession>('/session', data),
+  assign: (id: number, data: { characterRoleId: number; performerId: number }) =>
+    api.post<ShowSession>(`/session/${id}/assign`, data),
+  unassign: (id: number, characterRoleId: number) =>
+    api.post<ShowSession>(`/session/${id}/unassign/${characterRoleId}`),
+  markReady: (id: number) => api.post<ShowSession>(`/session/${id}/ready`)
 }

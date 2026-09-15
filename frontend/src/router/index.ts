@@ -7,6 +7,7 @@ import TraceQuery from '@/views/TraceQuery.vue'
 import HistoryRecord from '@/views/HistoryRecord.vue'
 import CharacterReview from '@/views/CharacterReview.vue'
 import DamageReport from '@/views/DamageReport.vue'
+import SessionScheduling from '@/views/SessionScheduling.vue'
 
 const routes = [
   { path: '/', redirect: '/theme' },
@@ -17,7 +18,8 @@ const routes = [
   { path: '/trace', component: TraceQuery },
   { path: '/history', component: HistoryRecord },
   { path: '/review', component: CharacterReview },
-  { path: '/damage-report', component: DamageReport }
+  { path: '/damage-report', component: DamageReport },
+  { path: '/session', component: SessionScheduling }
 ]
 
 const router = createRouter({
