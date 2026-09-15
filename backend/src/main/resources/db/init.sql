@@ -78,8 +78,8 @@ CREATE TABLE IF NOT EXISTS prop_damage_report (
     -- 未结案时取道具ID、结案后为NULL的生成列，配合唯一键保证同一道具至多一张未结案报损单
     open_prop_id BIGINT GENERATED ALWAYS AS (IF(status = '未结案', prop_id, NULL)) STORED,
     UNIQUE KEY uk_report_no (report_no),
-    UNIQUE KEY uk_open_prop_id (open_prop_id),
-    FOREIGN KEY (prop_id) REFERENCES prop(id) ON DELETE CASCADE
+    UNIQUE KEY uk_open_prop_id (open_prop_id)
+    -- MySQL 8.0.46：同表 STORED 生成列时不能再加指向 prop 的外键（ERROR 1215），应用层仍按 prop_id 关联
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='道具报损单表';
 
 CREATE TABLE IF NOT EXISTS performer (
