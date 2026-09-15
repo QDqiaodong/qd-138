@@ -47,4 +47,9 @@ public class ShowSessionController {
     public ApiResponse<ShowSessionResponse> markReady(@PathVariable Long id) {
         return ApiResponse.success(showSessionService.markReady(id));
     }
+
+    @PostMapping("/{id}/start")
+    public ApiResponse<ShowSessionResponse> start(@PathVariable Long id) {
+        return ApiResponse.success(showSessionService.start(id));
+    }
 }

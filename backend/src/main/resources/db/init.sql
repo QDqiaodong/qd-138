@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS prop_damage_report (
 CREATE TABLE IF NOT EXISTS performer (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     performer_name VARCHAR(100) NOT NULL COMMENT '演职人员姓名',
+    suspended TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否停演：标停后未开演场次名单标待换并挡住开演',
+    suspend_reason VARCHAR(500) COMMENT '停演原因（标停演时录入原文）',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_performer_name (performer_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='演职人员名册表';
@@ -95,7 +97,7 @@ CREATE TABLE IF NOT EXISTS show_session (
     script_theme_id BIGINT NOT NULL COMMENT '演出剧本主题ID',
     start_time DATETIME NOT NULL COMMENT '开演时间',
     end_time DATETIME NOT NULL COMMENT '结束时间',
-    status VARCHAR(20) DEFAULT '排班中' COMMENT '状态：排班中/已排好',
+    status VARCHAR(20) DEFAULT '排班中' COMMENT '状态：排班中/已排好/开演中',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (script_theme_id) REFERENCES script_theme(id) ON DELETE CASCADE

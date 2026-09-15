@@ -16,6 +16,9 @@ public class ShowSession {
     /** 已排好：主题里的全部人物都已指定演职人员，并经场务确认 */
     public static final String STATUS_READY = "已排好";
 
+    /** 开演中：已排好的场次已点开演，名单里不再出现待换 */
+    public static final String STATUS_RUNNING = "开演中";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

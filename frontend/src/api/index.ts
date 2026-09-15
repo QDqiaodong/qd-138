@@ -198,6 +198,10 @@ export interface DamageReport {
 export interface Performer {
   id: number
   performerName: string
+  /** 是否停演：标停后未开演场次名单里此人标为待换，并挡住开演 */
+  suspended: boolean
+  /** 停演原因原文 */
+  suspendReason: string | null
   createdAt: string
 }
 
@@ -206,6 +210,10 @@ export interface SessionAssignmentView {
   roleName: string
   performerId: number
   performerName: string
+  /** 待换：演员已标停演且本场未开演，开演前必须换掉 */
+  pendingReplacement: boolean
+  /** 停演原因原文，仅待换时有值 */
+  suspendReason: string | null
 }
 
 export interface ShowSession {
@@ -218,6 +226,8 @@ export interface ShowSession {
   status: string
   totalRoles: number
   assignedCount: number
+  /** 未开演场次里待换的排班条数；开演中恒为 0 */
+  pendingReplacementCount: number
   assignments: SessionAssignmentView[]
 }
 
@@ -295,6 +305,8 @@ export const damageReportApi = {
 export const performerApi = {
   getAll: () => api.get<Performer[]>('/performer'),
   create: (data: { performerName: string }) => api.post<Performer>('/performer', data),
+  suspend: (id: number, reason: string) => api.post<Performer>(`/performer/${id}/suspend`, { reason }),
+  resume: (id: number) => api.post<Performer>(`/performer/${id}/resume`),
   delete: (id: number) => api.delete<{ code: number }>(`/performer/${id}`)
 }
 
@@ -307,5 +319,6 @@ export const sessionApi = {
     api.post<ShowSession>(`/session/${id}/assign`, data),
   unassign: (id: number, characterRoleId: number) =>
     api.post<ShowSession>(`/session/${id}/unassign/${characterRoleId}`),
-  markReady: (id: number) => api.post<ShowSession>(`/session/${id}/ready`)
+  markReady: (id: number) => api.post<ShowSession>(`/session/${id}/ready`),
+  start: (id: number) => api.post<ShowSession>(`/session/${id}/start`)
 }

@@ -48,6 +48,31 @@ public class PerformerServiceImpl implements PerformerService {
 
     @Override
     @Transactional
+    public Performer suspend(Long id, String reason) {
+        Performer performer = performerRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("演职人员不存在，请刷新后重试"));
+        String trimmed = reason != null ? reason.trim() : "";
+        if (trimmed.isEmpty()) {
+            throw new BusinessException("请填写停演原因");
+        }
+        performer.setSuspended(true);
+        // 原因按录入原文落库，拦截开演时原样写出
+        performer.setSuspendReason(trimmed);
+        return performerRepository.save(performer);
+    }
+
+    @Override
+    @Transactional
+    public Performer resume(Long id) {
+        Performer performer = performerRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("演职人员不存在，请刷新后重试"));
+        performer.setSuspended(false);
+        performer.setSuspendReason(null);
+        return performerRepository.save(performer);
+    }
+
+    @Override
+    @Transactional
     public void delete(Long id) {
         Performer performer = performerRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("演职人员不存在，请刷新后重试"));

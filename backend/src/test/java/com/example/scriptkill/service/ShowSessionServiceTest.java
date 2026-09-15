@@ -294,4 +294,91 @@ class ShowSessionServiceTest {
         assertEquals(ShowSession.STATUS_SCHEDULING, resp.getStatus());
         verify(sessionAssignmentRepository).delete(any(SessionAssignment.class));
     }
+
+    @Test
+    void 停演人员不能排进场次_提示写出停演原因() {
+        performer1.setSuspended(true);
+        performer1.setSuspendReason("突发高烧，临时无法上场");
+        when(showSessionRepository.findById(10L)).thenReturn(Optional.of(session));
+        when(characterRoleRepository.findById(1L)).thenReturn(Optional.of(role1));
+        when(performerRepository.findById(1L)).thenReturn(Optional.of(performer1));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> showSessionService.assign(10L, assignRequest(1L, 1L)));
+        assertTrue(ex.getMessage().contains("张子昂"));
+        assertTrue(ex.getMessage().contains("突发高烧，临时无法上场"));
+        verify(sessionAssignmentRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void 停演后未开演场次名单标待换_开演中不标() {
+        performer1.setSuspended(true);
+        performer1.setSuspendReason("家里有事请假");
+        // 已排好（未开演）：名单里张子昂标待换并带原因原文
+        session.setStatus(ShowSession.STATUS_READY);
+        when(showSessionRepository.findById(10L)).thenReturn(Optional.of(session));
+        stubResponseReads(List.of(role1, role2), List.of(assignment(1L, 1L), assignment(2L, 2L)));
+
+        ShowSessionResponse ready = showSessionService.getSession(10L);
+        assertEquals(1, ready.getPendingReplacementCount());
+        ShowSessionResponse.AssignmentView pending = ready.getAssignments().get(0);
+        assertTrue(pending.isPendingReplacement());
+        assertEquals("张子昂", pending.getPerformerName());
+        assertEquals("许文强", pending.getRoleName());
+        assertEquals("家里有事请假", pending.getSuspendReason());
+        assertFalse(ready.getAssignments().get(1).isPendingReplacement());
+
+        // 开演中：名单里不再出现待换
+        session.setStatus(ShowSession.STATUS_RUNNING);
+        ShowSessionResponse running = showSessionService.getSession(10L);
+        assertEquals(0, running.getPendingReplacementCount());
+        assertTrue(running.getAssignments().stream().noneMatch(ShowSessionResponse.AssignmentView::isPendingReplacement));
+    }
+
+    @Test
+    void 开演被待换拦住_写出演员名所演人物和原因原文() {
+        session.setStatus(ShowSession.STATUS_READY);
+        performer1.setSuspended(true);
+        performer1.setSuspendReason("突发高烧，临时无法上场");
+        when(showSessionRepository.findById(10L)).thenReturn(Optional.of(session));
+        when(sessionAssignmentRepository.findBySessionId(10L))
+                .thenReturn(List.of(assignment(1L, 1L), assignment(2L, 2L)));
+        when(performerRepository.findById(1L)).thenReturn(Optional.of(performer1));
+        when(characterRoleRepository.findById(1L)).thenReturn(Optional.of(role1));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> showSessionService.start(10L));
+        assertTrue(ex.getMessage().contains("张子昂"), "要写出停演演员名：" + ex.getMessage());
+        assertTrue(ex.getMessage().contains("许文强"), "要写出所演人物：" + ex.getMessage());
+        assertTrue(ex.getMessage().contains("突发高烧，临时无法上场"), "要写出原因原文：" + ex.getMessage());
+        // 拦下后场次仍是已排好，不能转成开演中
+        assertEquals(ShowSession.STATUS_READY, session.getStatus());
+        verify(showSessionRepository, never()).save(any());
+    }
+
+    @Test
+    void 开演成功_已排好转开演中_名单不再有待换() {
+        session.setStatus(ShowSession.STATUS_READY);
+        when(showSessionRepository.findById(10L)).thenReturn(Optional.of(session));
+        when(showSessionRepository.save(any(ShowSession.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubResponseReads(List.of(role1, role2), List.of(assignment(1L, 1L), assignment(2L, 2L)));
+
+        ShowSessionResponse resp = showSessionService.start(10L);
+
+        assertEquals(ShowSession.STATUS_RUNNING, resp.getStatus());
+        assertEquals(0, resp.getPendingReplacementCount());
+        assertTrue(resp.getAssignments().stream().noneMatch(ShowSessionResponse.AssignmentView::isPendingReplacement));
+    }
+
+    @Test
+    void 没排好不能开演_重复开演被拦() {
+        when(showSessionRepository.findById(10L)).thenReturn(Optional.of(session));
+
+        BusinessException notReady = assertThrows(BusinessException.class, () -> showSessionService.start(10L));
+        assertTrue(notReady.getMessage().contains("还没排好"));
+        assertEquals(ShowSession.STATUS_SCHEDULING, session.getStatus());
+
+        session.setStatus(ShowSession.STATUS_RUNNING);
+        BusinessException again = assertThrows(BusinessException.class, () -> showSessionService.start(10L));
+        assertTrue(again.getMessage().contains("已在开演中"));
+    }
 }

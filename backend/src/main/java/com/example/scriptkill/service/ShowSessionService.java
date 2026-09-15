@@ -22,4 +22,7 @@ public interface ShowSessionService {
 
     /** 主题里的人物全部排完才允许标为已排好 */
     ShowSessionResponse markReady(Long sessionId);
+
+    /** 开演：仅已排好可开演；只要还有待换就拦住并写出停演演员、所演人物和原因原文；成功后转为开演中 */
+    ShowSessionResponse start(Long sessionId);
 }

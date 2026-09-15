@@ -102,6 +102,11 @@ public class ShowSessionServiceImpl implements ShowSessionService {
         }
         Performer performer = performerRepository.findById(request.getPerformerId())
                 .orElseThrow(() -> new BusinessException("所选演职人员不存在，请刷新名册后重选"));
+        // 停演人员不能排进场次：停演立即生效，要上场先恢复演出或换别人
+        if (Boolean.TRUE.equals(performer.getSuspended())) {
+            throw new BusinessException("「" + performer.getPerformerName() + "」已标停演，停演原因："
+                    + performer.getSuspendReason() + "；不能排进场次，请换人或在名册中恢复演出");
+        }
 
         // 同一个人在同一场里不能演两个人物
         Optional<SessionAssignment> samePerformer = sessionAssignmentRepository
@@ -166,6 +171,9 @@ public class ShowSessionServiceImpl implements ShowSessionService {
     public ShowSessionResponse markReady(Long sessionId) {
         ShowSession session = showSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new BusinessException("场次不存在，请刷新后重试"));
+        if (ShowSession.STATUS_RUNNING.equals(session.getStatus())) {
+            throw new BusinessException("本场已在开演中，不能再标为已排好");
+        }
         long total = characterRoleRepository.findByScriptThemeId(session.getScriptThemeId()).size();
         long assigned = sessionAssignmentRepository.countBySessionId(sessionId);
         if (total == 0) {
@@ -177,6 +185,50 @@ public class ShowSessionServiceImpl implements ShowSessionService {
         }
         session.setStatus(ShowSession.STATUS_READY);
         return toResponse(showSessionRepository.save(session));
+    }
+
+    @Override
+    @Transactional
+    public ShowSessionResponse start(Long sessionId) {
+        ShowSession session = showSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new BusinessException("场次不存在，请刷新后重试"));
+        if (ShowSession.STATUS_RUNNING.equals(session.getStatus())) {
+            throw new BusinessException("本场已在开演中，无需重复开演");
+        }
+        if (!ShowSession.STATUS_READY.equals(session.getStatus())) {
+            throw new BusinessException("本场还没排好，人物排完并标为已排好才能开演");
+        }
+        // 只要这场还有待换就拦住开演，写出停演演员、所演人物和停演原因原文
+        List<String> blocked = findPendingReplacements(session);
+        if (!blocked.isEmpty()) {
+            throw new BusinessException("本场还有演员待换，不能开演："
+                    + String.join("；", blocked)
+                    + "。请先换掉待换的人再开演");
+        }
+        session.setStatus(ShowSession.STATUS_RUNNING);
+        return toResponse(showSessionRepository.save(session));
+    }
+
+    /**
+     * 汇总本场未开演时名单里的待换项：停演演员名、所演人物、停演原因原文。
+     * 仅未开演（排班中/已排好）的场次有待换一说。
+     */
+    private List<String> findPendingReplacements(ShowSession session) {
+        List<String> blocked = new ArrayList<>();
+        if (ShowSession.STATUS_RUNNING.equals(session.getStatus())) {
+            return blocked;
+        }
+        for (SessionAssignment assignment : sessionAssignmentRepository.findBySessionId(session.getId())) {
+            Performer performer = performerRepository.findById(assignment.getPerformerId()).orElse(null);
+            if (performer == null || !Boolean.TRUE.equals(performer.getSuspended())) {
+                continue;
+            }
+            CharacterRole role = characterRoleRepository.findById(assignment.getCharacterRoleId()).orElse(null);
+            blocked.add("「" + performer.getPerformerName() + "」饰演「"
+                    + (role != null ? role.getRoleName() : "未知人物")
+                    + "」，停演原因：" + performer.getSuspendReason());
+        }
+        return blocked;
     }
 
     /**
@@ -204,6 +256,9 @@ public class ShowSessionServiceImpl implements ShowSessionService {
         List<SessionAssignment> assignments = sessionAssignmentRepository.findBySessionId(session.getId());
         response.setAssignedCount(assignments.size());
 
+        // 待换只挂在未开演的场次名单上；开演中及以后不再出现待换
+        boolean unstarted = !ShowSession.STATUS_RUNNING.equals(session.getStatus());
+        int pendingCount = 0;
         List<ShowSessionResponse.AssignmentView> views = new ArrayList<>();
         for (SessionAssignment assignment : assignments) {
             ShowSessionResponse.AssignmentView view = new ShowSessionResponse.AssignmentView();
@@ -213,8 +268,14 @@ public class ShowSessionServiceImpl implements ShowSessionService {
             view.setPerformerId(assignment.getPerformerId());
             Performer performer = performerRepository.findById(assignment.getPerformerId()).orElse(null);
             view.setPerformerName(performer != null ? performer.getPerformerName() : "");
+            if (unstarted && performer != null && Boolean.TRUE.equals(performer.getSuspended())) {
+                view.setPendingReplacement(true);
+                view.setSuspendReason(performer.getSuspendReason());
+                pendingCount++;
+            }
             views.add(view);
         }
+        response.setPendingReplacementCount(pendingCount);
         response.setAssignments(views);
         return response;
     }

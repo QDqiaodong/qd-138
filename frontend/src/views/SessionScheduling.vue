@@ -8,8 +8,9 @@
         <el-select v-model="filterStatus" placeholder="按状态筛选" style="margin-left: 10px; width: 140px;" clearable>
           <el-option label="排班中" value="排班中" />
           <el-option label="已排好" value="已排好" />
+          <el-option label="开演中" value="开演中" />
         </el-select>
-        <span class="header-tip">主题里的人物全部排完才能标为已排好；同一个人时间重叠的场次会被拦住</span>
+        <span class="header-tip">主题里的人物全部排完才能标为已排好；同一个人时间重叠的场次会被拦住；有待换的场次开演会被拦下</span>
       </div>
 
       <el-table :data="filteredSessions" border empty-text="暂无场次，点击「开一场」开始排班">
@@ -28,23 +29,35 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column label="状态" width="130" align="center">
           <template #default="scope">
-            <el-tag :type="scope.row.status === '已排好' ? 'success' : 'warning'">
+            <el-tag :type="statusTagType(scope.row.status)">
               {{ scope.row.status }}
             </el-tag>
+            <el-tag
+              v-if="scope.row.pendingReplacementCount > 0"
+              type="danger"
+              size="small"
+              style="margin-left: 4px;"
+            >待换 {{ scope.row.pendingReplacementCount }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" align="center">
+        <el-table-column label="操作" width="260" align="center">
           <template #default="scope">
             <el-button size="small" type="primary" @click="openScheduleDialog(scope.row)">排班</el-button>
             <el-button
-              v-if="scope.row.status !== '已排好'"
+              v-if="scope.row.status === '排班中'"
               size="small"
               type="success"
               :disabled="scope.row.totalRoles === 0 || scope.row.assignedCount < scope.row.totalRoles"
               @click="handleReady(scope.row)"
             >标为已排好</el-button>
+            <el-button
+              v-if="scope.row.status === '已排好'"
+              size="small"
+              type="danger"
+              @click="handleStart(scope.row)"
+            >开演</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -97,9 +110,15 @@
           <span>开演：{{ formatTime(currentSession.startTime) }} ~ {{ formatTime(currentSession.endTime) }}</span>
           <span class="schedule-progress">
             已排 {{ currentSession.assignedCount }}/{{ currentSession.totalRoles }}
-            <el-tag :type="currentSession.status === '已排好' ? 'success' : 'warning'" size="small" style="margin-left: 8px;">
+            <el-tag :type="statusTagType(currentSession.status)" size="small" style="margin-left: 8px;">
               {{ currentSession.status }}
             </el-tag>
+            <el-tag
+              v-if="currentSession.pendingReplacementCount > 0"
+              type="danger"
+              size="small"
+              style="margin-left: 4px;"
+            >待换 {{ currentSession.pendingReplacementCount }}</el-tag>
           </span>
         </div>
         <el-table :data="scheduleRows" border empty-text="该主题下还没有人物，请先到人物角色管理添加">
@@ -116,10 +135,20 @@
                 <el-option
                   v-for="performer in performers"
                   :key="performer.id"
-                  :label="performer.performerName"
+                  :label="performer.performerName + (performer.suspended ? '（停演）' : '')"
                   :value="performer.id"
                 />
               </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="180" align="center">
+            <template #default="scope">
+              <template v-if="assignmentViewMap[scope.row.id]?.pendingReplacement">
+                <el-tag type="danger" size="small">待换</el-tag>
+                <div class="suspend-reason">停演原因：{{ assignmentViewMap[scope.row.id].suspendReason }}</div>
+              </template>
+              <span v-else-if="assignMap[scope.row.id]" class="assigned-ok">已排</span>
+              <span v-else class="assigned-none">未排</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="90" align="center">
@@ -134,20 +163,25 @@
             </template>
           </el-table-column>
         </el-table>
-        <div class="schedule-tip">换演员直接重新选择即可，换完刷新仍是新的人；时间重叠会提示撞上了哪一场</div>
+        <div class="schedule-tip">换演员直接重新选择即可，换完刷新仍是新的人；时间重叠会提示撞上了哪一场；标了待换的行要换掉才能开演</div>
       </template>
       <template #footer>
         <el-button
-          v-if="currentSession && currentSession.status !== '已排好'"
+          v-if="currentSession && currentSession.status === '排班中'"
           type="success"
           :disabled="currentSession.totalRoles === 0 || currentSession.assignedCount < currentSession.totalRoles"
           @click="handleReady(currentSession)"
         >标为已排好</el-button>
+        <el-button
+          v-if="currentSession && currentSession.status === '已排好'"
+          type="danger"
+          @click="handleStart(currentSession)"
+        >开演</el-button>
         <el-button @click="scheduleVisible = false">关闭</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="performerVisible" title="人员名册" width="480px">
+    <el-dialog v-model="performerVisible" title="人员名册" width="640px">
       <div class="performer-add">
         <el-input
           v-model="newPerformerName"
@@ -161,13 +195,41 @@
         </el-button>
       </div>
       <el-table :data="performers" border empty-text="名册为空，先添加演职人员">
-        <el-table-column prop="performerName" label="姓名" min-width="120" />
-        <el-table-column label="操作" width="90" align="center">
+        <el-table-column prop="performerName" label="姓名" min-width="100" />
+        <el-table-column label="状态" width="80" align="center">
           <template #default="scope">
+            <el-tag :type="scope.row.suspended ? 'danger' : 'success'" size="small">
+              {{ scope.row.suspended ? '停演' : '正常' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="停演原因" min-width="140">
+          <template #default="scope">
+            <span v-if="scope.row.suspended">{{ scope.row.suspendReason }}</span>
+            <span v-else class="assigned-none">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="180" align="center">
+          <template #default="scope">
+            <el-button
+              v-if="!scope.row.suspended"
+              size="small"
+              type="warning"
+              link
+              @click="handleSuspend(scope.row)"
+            >标停演</el-button>
+            <el-button
+              v-else
+              size="small"
+              type="success"
+              link
+              @click="handleResume(scope.row)"
+            >恢复演出</el-button>
             <el-button size="small" type="danger" link @click="handleDeletePerformer(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
+      <div class="schedule-tip">标停演后，未开演场次的名单里此人会标成待换，有待换的场次开演会被拦下</div>
     </el-dialog>
   </div>
 </template>
@@ -177,7 +239,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   sessionApi, performerApi, themeApi, roleApi, getErrorMessage,
-  type ShowSession, type Performer, type ScriptTheme, type CharacterRole
+  type ShowSession, type Performer, type ScriptTheme, type CharacterRole, type SessionAssignmentView
 } from '@/api'
 
 const sessions = ref<ShowSession[]>([])
@@ -209,6 +271,21 @@ const filteredSessions = computed(() => {
 })
 
 const scheduleRows = computed(() => themeRoles.value)
+
+/** 人物ID -> 排班视图（含待换标记与停演原因），以服务端返回为准 */
+const assignmentViewMap = computed<Record<number, SessionAssignmentView>>(() => {
+  const map: Record<number, SessionAssignmentView> = {}
+  for (const a of currentSession.value?.assignments ?? []) {
+    map[a.characterRoleId] = a
+  }
+  return map
+})
+
+const statusTagType = (status: string): 'success' | 'warning' | 'info' => {
+  if (status === '已排好') return 'success'
+  if (status === '开演中') return 'info'
+  return 'warning'
+}
 
 const formatTime = (time: string) => (time ? time.replace('T', ' ').slice(0, 16) : '')
 
@@ -339,6 +416,97 @@ const handleReady = async (row: ShowSession) => {
   }
 }
 
+// 点开演：只要这场还有待换，后端就会拦下并写出停演演员、所演人物和原因原文
+const handleStart = async (row: ShowSession) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定场次「${row.sessionNo} ${row.themeName}」现在开演？开演后转为开演中。`,
+      '开演确认',
+      { confirmButtonText: '开演', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  try {
+    const detail = await sessionApi.start(row.id)
+    ElMessage.success(`场次「${row.sessionNo}」已开演`)
+    if (currentSession.value && currentSession.value.id === row.id) {
+      currentSession.value = detail
+      syncAssignMap(detail)
+    }
+    loadSessions()
+  } catch (err) {
+    // 被拦时弹出待换明细：停演演员名、所演人物、停演原因原文
+    ElMessageBox.alert(getErrorMessage(err, '开演失败，请重试'), '开演被拦下', {
+      confirmButtonText: '知道了',
+      type: 'error'
+    })
+    loadSessions()
+    if (currentSession.value && currentSession.value.id === row.id) {
+      const detail = await sessionApi.getById(row.id)
+      currentSession.value = detail
+      syncAssignMap(detail)
+    }
+  }
+}
+
+// 标停演：必填停演原因，标停后未开演场次的名单里此人标为待换
+const handleSuspend = async (row: Performer) => {
+  let reason: string
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `请填写「${row.performerName}」的停演原因（将原样写在开演拦截提示里）`,
+      '标停演',
+      {
+        confirmButtonText: '标停演',
+        cancelButtonText: '取消',
+        type: 'warning',
+        inputPlaceholder: '例如：突发高烧，临时无法上场',
+        inputValidator: (val: string) => (val && val.trim() ? true : '请填写停演原因')
+      }
+    )
+    reason = value.trim()
+  } catch {
+    return
+  }
+  try {
+    await performerApi.suspend(row.id, reason)
+    ElMessage.success(`已标停演：「${row.performerName}」`)
+    await refreshAfterPerformerChange()
+  } catch (err) {
+    ElMessage.error(getErrorMessage(err, '标停演失败，请重试'))
+  }
+}
+
+const handleResume = async (row: Performer) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定「${row.performerName}」恢复演出？各未开演场次的待换标记随即消失。`,
+      '恢复演出',
+      { confirmButtonText: '恢复演出', cancelButtonText: '取消', type: 'success' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await performerApi.resume(row.id)
+    ElMessage.success(`已恢复演出：「${row.performerName}」`)
+    await refreshAfterPerformerChange()
+  } catch (err) {
+    ElMessage.error(getErrorMessage(err, '恢复演出失败，请重试'))
+  }
+}
+
+// 停演状态变了，名册、场次列表和正开着的排班对话框都要重新拉，待换标记才一致
+const refreshAfterPerformerChange = async () => {
+  await Promise.all([loadBase(), loadSessions()])
+  if (scheduleVisible.value && currentSession.value) {
+    const detail = await sessionApi.getById(currentSession.value.id)
+    currentSession.value = detail
+    syncAssignMap(detail)
+  }
+}
+
 const openPerformerDialog = () => {
   newPerformerName.value = ''
   performerVisible.value = true
@@ -418,6 +586,23 @@ onMounted(() => {
 .schedule-tip {
   margin-top: 12px;
   color: #999;
+  font-size: 13px;
+}
+
+.suspend-reason {
+  margin-top: 4px;
+  color: #f56c6c;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.assigned-ok {
+  color: #67c23a;
+  font-size: 13px;
+}
+
+.assigned-none {
+  color: #c0c4cc;
   font-size: 13px;
 }
 

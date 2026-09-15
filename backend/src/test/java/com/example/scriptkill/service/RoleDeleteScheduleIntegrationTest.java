@@ -161,7 +161,7 @@ class RoleDeleteScheduleIntegrationTest {
         assertFalse(roleExists(roleA), "撤下并删除后人物应消失");
         JsonNode after = getSession(sessionId);
         assertEquals(1, after.path("assignedCount").asInt(), "进度要随撤下回退");
-        assertEquals(2, after.path("totalRoles").asInt(), "剩余人物仍在，总人数为 2");
+        assertEquals(1, after.path("totalRoles").asInt(), "人物被删掉后总人数随之减为 1");
         assertEquals("排班中", after.path("status").asText(), "已排好必须打回排班中");
         // 排班视图里也不能再挂着被删人物
         for (JsonNode a : after.path("assignments")) {

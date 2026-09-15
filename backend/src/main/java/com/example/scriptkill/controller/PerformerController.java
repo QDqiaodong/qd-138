@@ -1,6 +1,7 @@
 package com.example.scriptkill.controller;
 
 import com.example.scriptkill.dto.request.PerformerCreateRequest;
+import com.example.scriptkill.dto.request.PerformerSuspendRequest;
 import com.example.scriptkill.dto.response.ApiResponse;
 import com.example.scriptkill.entity.Performer;
 import com.example.scriptkill.service.PerformerService;
@@ -25,6 +26,16 @@ public class PerformerController {
     @PostMapping
     public ApiResponse<Performer> createPerformer(@RequestBody PerformerCreateRequest request) {
         return ApiResponse.success(performerService.create(request));
+    }
+
+    @PostMapping("/{id}/suspend")
+    public ApiResponse<Performer> suspendPerformer(@PathVariable Long id, @RequestBody PerformerSuspendRequest request) {
+        return ApiResponse.success(performerService.suspend(id, request.getReason()));
+    }
+
+    @PostMapping("/{id}/resume")
+    public ApiResponse<Performer> resumePerformer(@PathVariable Long id) {
+        return ApiResponse.success(performerService.resume(id));
     }
 
     @DeleteMapping("/{id}")
