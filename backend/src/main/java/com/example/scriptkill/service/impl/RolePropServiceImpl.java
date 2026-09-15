@@ -212,24 +212,34 @@ public class RolePropServiceImpl implements RolePropService {
     @Transactional
     public void unbindPropsFromRole(Long roleId, List<Long> propIds) {
         CharacterRole role = characterRoleRepository.findById(roleId).orElse(null);
-        
+
         for (Long propId : propIds) {
             Prop prop = propRepository.findById(propId).orElse(null);
-            
+
+            // 先找到道具在该人物名下的实际绑定关系（角色+道具有唯一约束，至多一条），
+            // 解绑当时所属剧本以绑定关系上记录的剧本为准，避免回看名单丢失剧本名
+            RoleProp targetBinding = null;
+            List<RoleProp> roleProps = rolePropRepository.findByCharacterRoleId(roleId);
+            for (RoleProp rp : roleProps) {
+                if (rp.getPropId().equals(propId)) {
+                    targetBinding = rp;
+                    break;
+                }
+            }
+            Long themeId = targetBinding != null
+                    ? targetBinding.getScriptThemeId()
+                    : (role != null ? role.getScriptThemeId() : null);
+
             PropChangeRecord record = new PropChangeRecord();
             record.setPropId(propId);
             record.setCharacterRoleId(roleId);
+            record.setScriptThemeId(themeId);
             record.setChangeType("解绑");
             record.setBeforeValue("角色: " + (role != null ? role.getRoleName() : "未知"));
             changeRecordRepository.save(record);
-            
-            List<RoleProp> roleProps = rolePropRepository.findByCharacterRoleIdAndScriptThemeId(
-                roleId, role != null ? role.getScriptThemeId() : null);
-            for (RoleProp rp : roleProps) {
-                if (rp.getPropId().equals(propId)) {
-                    rolePropRepository.delete(rp);
-                    break;
-                }
+
+            if (targetBinding != null) {
+                rolePropRepository.delete(targetBinding);
             }
         }
     }
