@@ -10,8 +10,11 @@ import java.util.Optional;
 @Repository
 public interface SessionAssignmentRepository extends JpaRepository<SessionAssignment, Long> {
     List<SessionAssignment> findBySessionId(Long sessionId);
+    List<SessionAssignment> findByCharacterRoleId(Long characterRoleId);
     Optional<SessionAssignment> findBySessionIdAndCharacterRoleId(Long sessionId, Long characterRoleId);
     Optional<SessionAssignment> findBySessionIdAndPerformerId(Long sessionId, Long performerId);
     long countBySessionId(Long sessionId);
     boolean existsByPerformerId(Long performerId);
+
+    void deleteByCharacterRoleId(Long characterRoleId);
 }

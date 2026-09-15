@@ -57,7 +57,14 @@ public class CharacterRoleController {
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteRole(@PathVariable Long id) {
-        characterRoleRepository.deleteById(id);
+        characterRoleService.delete(id);
+        return ApiResponse.success(null);
+    }
+
+    // 与默认删除分开：只有场务显式走「撤下并删除」，才会先撤各场排班再连人带档拿掉
+    @PostMapping("/{id}/unassign-and-delete")
+    public ApiResponse<Void> unassignAndDeleteRole(@PathVariable Long id) {
+        characterRoleService.unassignAndDelete(id);
         return ApiResponse.success(null);
     }
 }

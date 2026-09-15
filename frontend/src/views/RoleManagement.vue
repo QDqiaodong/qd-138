@@ -60,9 +60,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { themeApi, roleApi, type ScriptTheme, type CharacterRole } from '@/api'
+import { themeApi, roleApi, getErrorMessage, type ScriptTheme, type CharacterRole } from '@/api'
 
 const themes = ref<ScriptTheme[]>([])
 const roles = ref<CharacterRole[]>([])
@@ -138,14 +138,49 @@ const handleSubmit = async () => {
   }
 }
 
+// 默认删除走 DELETE：人物还排在任意一场时后端一定拦住，提示里写出卡在哪几场，
+// 不会顺带清排班、也不会删人物。只有场务在拦截框里显式选择「撤下并删除」，
+// 才走另一条路：先撤各场排班，再连人带档拿掉，撤完场次会从已排好打回排班中。
 const handleDelete = async (row: CharacterRole) => {
   try {
     await ElMessageBox.confirm(`确定删除角色「${row.roleName}」？`, '提示', { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
     await roleApi.delete(row.id)
     ElMessage.success('删除成功')
     loadRoles()
-  } catch {
-    // cancelled
+  } catch (err) {
+    // 还在场次里：把后端列出的卡点场次摆给场务，另给一条明确分开的「撤下并删除」路
+    const blocked = getErrorMessage(err, '删除失败，请刷新后重试')
+    const blockedMessage = h('div', { class: 'role-delete-blocked' }, [
+      h('p', { class: 'blocked-reason' }, blocked),
+      h('p', { class: 'blocked-action' },
+        `要连人带档一起拿掉吗？这会先撤掉以上各场中「${row.roleName}」的排班再删除，相关场次会从「已排好」打回「排班中」。`)
+    ])
+    try {
+      await ElMessageBox.confirm(
+        blockedMessage,
+        '删除被拦住',
+        {
+          confirmButtonText: '撤下并删除',
+          cancelButtonText: '我再想想',
+          type: 'warning',
+          distinguishCancelAndClose: true
+        }
+      )
+    } catch {
+      // 场务取消或关闭：人物必须原样保留，拦截已经在后端生效
+      return
+    }
+    try {
+      await roleApi.unassignAndDelete(row.id)
+      ElMessage.success('已撤下各场排班并删除该人物')
+      loadRoles()
+    } catch (err2) {
+      ElMessage.error(getErrorMessage(err2, '撤下并删除失败，请刷新后重试'))
+    }
   }
 }
 
@@ -158,5 +193,20 @@ onMounted(async () => {
 <style scoped>
 .card-header {
   margin-bottom: 20px;
+}
+</style>
+
+<!-- 提示框由 ElMessageBox 传送节点外渲染，样式不能加 scoped -->
+<style>
+.role-delete-blocked .blocked-reason {
+  margin: 0 0 12px;
+  color: #e6a23c;
+  line-height: 1.6;
+}
+
+.role-delete-blocked .blocked-action {
+  margin: 0;
+  color: #606266;
+  line-height: 1.6;
 }
 </style>

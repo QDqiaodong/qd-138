@@ -236,11 +236,13 @@ export const roleApi = {
   getAll: () => api.get<CharacterRole[]>('/role'),
   getById: (id: number) => api.get<CharacterRole>(`/role/${id}`),
   getByTheme: (themeId: number) => api.get<CharacterRole[]>(`/role/theme/${themeId}`),
-  create: (data: Omit<CharacterRole, 'id' | 'createdAt' | 'updatedAt'>) => 
+  create: (data: Omit<CharacterRole, 'id' | 'createdAt' | 'updatedAt'>) =>
     api.post<CharacterRole>('/role', data),
-  update: (id: number, data: Partial<CharacterRole>) => 
+  update: (id: number, data: Partial<CharacterRole>) =>
     api.put<CharacterRole>(`/role/${id}`, data),
-  delete: (id: number) => api.delete<{ code: number }>(`/role/${id}`)
+  delete: (id: number) => api.delete<{ code: number }>(`/role/${id}`),
+  // 撤下并删除：先撤各场排班再连人带档拿掉，和默认删除是两条路
+  unassignAndDelete: (id: number) => api.post<{ code: number }>(`/role/${id}/unassign-and-delete`)
 }
 
 export const propApi = {
